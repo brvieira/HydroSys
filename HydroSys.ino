@@ -1,58 +1,96 @@
-#define BLYNK_PRINT Serial
-
-
+#include <ArduinoJson.h>
+#include <ESP8266HTTPClient.h>
 #include <ESP8266WiFi.h>
 #include <BlynkSimpleEsp8266.h>
 #include <DHT.h>
 
-// You should get Auth Token in the Blynk App.
-// Go to the Project Settings (nut icon).
+#define BLYNK_PRINT Serial
+#define DHTPIN 2
+#define DHTTYPE DHT11
+
+//Token para comunicação com o Blynk
 char auth[] = "8d2b97a1033749029f243fecc9f39a5a";
 
-// Your WiFi credentials.
-// Set password to "" for open networks.
+//Credenciais de WIFI
 char ssid[] = "Desktop_F3212335";
-char pass[] = "";
-
-#define DHTPIN 2          // What digital pin we're connected to
-
-// Uncomment whatever type you're using!
-#define DHTTYPE DHT11     // DHT 11
+char pass[] = "bru268no";
 
 DHT dht(DHTPIN, DHTTYPE);
 BlynkTimer timer;
 
-// This function sends Arduino's up time every second to Virtual Pin (5).
-// In the app, Widget's reading frequency should be set to PUSH. This means
-// that you define how often to send data to Blynk App.
 
-void sendSensor()
-{
-  float h = dht.readHumidity();
-  float t = dht.readTemperature(); // or dht.readTemperature(true) for Fahrenheit
+//Função responsável por ler os dados dos sensores e enviá-los para o Blynk
+void sendSensor() {
+  //Leitura dos sensores
+  float umidInterna = dht.readHumidity();
+  float tempInterna = dht.readTemperature();
 
-  if (isnan(h) || isnan(t)) {
-    Serial.println("Failed to read from DHT sensor!");
+  //"If" para verificar se a leitura dos dados dos sensores foi feita com sucesso
+  if (isnan(umidInterna) || isnan(tempInterna)) {
+    Serial.println("Falha ao ler sensor DHT11!");
     return;
   }
-  // You can send any value at any time.
-  // Please don't send more that 10 values per second.
-  Blynk.virtualWrite(V5, h);
-  Blynk.virtualWrite(V6, t);
 
+  //Envia cada dados para um dos pinos virtuais do Blynk
+  Blynk.virtualWrite(V5, umidInterna);
+  Blynk.virtualWrite(V6, tempInterna);
+
+}
+
+//Função responsável por ler os dados dos sensores, criar um arquivo JSON e enviá-lo via POST para a API.
+void saveData() {
+  //Leitura dos sensores
+  float umidInterna = dht.readHumidity();
+  float tempInterna = dht.readTemperature();
+
+  //Laço para garantir que a leitura dos dados dos sensores seja feita com sucesso
+  while (isnan(umidInterna) || isnan(tempInterna)) {
+    umidInterna = dht.readHumidity();
+    tempInterna = dht.readTemperature();
+  }
+  
+  //Criação do objeto JSON
+  StaticJsonBuffer<300> JSONbuffer;
+
+  JsonObject& data = JSONbuffer.createObject();
+
+  data["umidadeInterna"] = String(umidInterna);
+  data["temperaturaInterna"] = String(tempInterna);
+
+  //Converte o objeto JSON para String em formato JSON
+  String dataStr;
+  data.printTo(dataStr);
+
+  //Envia os dados em formato JSON para a API via POST
+  HTTPClient http;
+
+  //URL da API
+  http.begin("http://hydroapi.herokuapp.com/dados/");
+  http.addHeader("Content-Type", "application/json");
+
+  //Variável responsável por receber o código da resposta Http
+  int httpCode = http.POST(dataStr);
+
+  //Imprimi na porta Serial o código da resposta Http para debug
+  Serial.println(httpCode);
+
+  //Encerra a conexão com a API
+  http.end();
+  
 }
 
 void setup()
 {
-  // Debug console
-  Serial.begin(9600);
-
+  //Debug console
+  Serial.begin(115200);
+  
+  dht.begin();
   Blynk.begin(auth, ssid, pass);
 
-  dht.begin();
-
-  // Setup a function to be called every second
-  timer.setInterval(1000L, sendSensor);
+  //Timer responsável por chamar a função sendSensor a cada 1,5 segundos
+  timer.setInterval(1500L, sendSensor);
+  //Timer responsável por chamar a função saveData a cada 10 minutos
+  timer.setInterval(600000L, saveData);
 }
 
 void loop()
