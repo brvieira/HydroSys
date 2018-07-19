@@ -9,11 +9,11 @@
 #define DHTTYPE DHT11
 
 //Token para comunicação com o Blynk
-char auth[] = "8d2b97a1033749029f243fecc9f39a5a";
+char auth[] = "7b15b001e0014c4891a6b4e441de1bdf";
 
 //Credenciais de WIFI
 char ssid[] = "Desktop_F3212335";
-char pass[] = "bru268no";
+char pass[] = "";
 
 DHT dht(DHTPIN, DHTTYPE);
 BlynkTimer timer;
