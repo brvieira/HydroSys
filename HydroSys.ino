@@ -3,7 +3,10 @@
 #include <ESP8266WiFi.h>
 #include <BlynkSimpleEsp8266.h>
 #include <DHT.h>
+#include <DallasTemperature.h>
+#include <OneWire.h>
 
+#define ONE_WIRE_BUS 14
 #define BLYNK_PRINT Serial
 #define DHTPIN 2
 #define DHTTYPE DHT11
@@ -13,38 +16,62 @@ char auth[] = "7b15b001e0014c4891a6b4e441de1bdf";
 
 //Credenciais de WIFI
 char ssid[] = "Desktop_F3212335";
-char pass[] = "";
+char pass[] = "bru268no";
 
+OneWire oneWire(ONE_WIRE_BUS);
+DallasTemperature dsSensor(&oneWire);
 DHT dht(DHTPIN, DHTTYPE);
 BlynkTimer timer;
 
+float tempSolucao;
+float umidInterna;
+float tempInterna;
 
 //Função responsável por ler os dados dos sensores e enviá-los para o Blynk
 void sendSensor() {
   //Leitura dos sensores
-  float umidInterna = dht.readHumidity();
-  float tempInterna = dht.readTemperature();
+  dsSensor.requestTemperatures();
+  tempSolucao = dsSensor.getTempCByIndex(0);
+  umidInterna = dht.readHumidity();
+  tempInterna = dht.readTemperature();
 
-  //"If" para verificar se a leitura dos dados dos sensores foi feita com sucesso
-  if (isnan(umidInterna) || isnan(tempInterna)) {
-    Serial.println("Falha ao ler sensor DHT11!");
-    return;
+  //Laço para garantir que a leitura dos dados dos sensores seja feita com sucesso
+  while (isnan(umidInterna) || isnan(tempInterna) || isnan(tempSolucao)) {
+    dsSensor.requestTemperatures();
+    tempSolucao = dsSensor.getTempCByIndex(0);
+    umidInterna = dht.readHumidity();
+    tempInterna = dht.readTemperature();
   }
 
+  Serial.print("Temperatura da Solução: ");
+  Serial.print(tempSolucao);
+  Serial.println(" °C");
+  Serial.print("Temperatura Interna: ");
+  Serial.print(tempInterna);
+  Serial.println(" °C");
+  Serial.print("Umidade Interna: ");
+  Serial.print(umidInterna);
+  Serial.println(" %");
+  Serial.println("");
+  
   //Envia cada dados para um dos pinos virtuais do Blynk
   Blynk.virtualWrite(V5, umidInterna);
   Blynk.virtualWrite(V6, tempInterna);
-
+  Blynk.virtualWrite(V4, tempSolucao);
 }
 
 //Função responsável por ler os dados dos sensores, criar um arquivo JSON e enviá-lo via POST para a API.
 void saveData() {
   //Leitura dos sensores
-  float umidInterna = dht.readHumidity();
-  float tempInterna = dht.readTemperature();
+  dsSensor.requestTemperatures();
+  tempSolucao = dsSensor.getTempCByIndex(0);
+  umidInterna = dht.readHumidity();
+  tempInterna = dht.readTemperature();
 
   //Laço para garantir que a leitura dos dados dos sensores seja feita com sucesso
-  while (isnan(umidInterna) || isnan(tempInterna)) {
+  while (isnan(umidInterna) || isnan(tempInterna) || isnan(tempSolucao)) {
+    dsSensor.requestTemperatures();
+    tempSolucao = dsSensor.getTempCByIndex(0);
     umidInterna = dht.readHumidity();
     tempInterna = dht.readTemperature();
   }
@@ -54,8 +81,9 @@ void saveData() {
 
   JsonObject& data = JSONbuffer.createObject();
 
-  data["umidadeInterna"] = String(umidInterna);
   data["temperaturaInterna"] = String(tempInterna);
+  data["umidadeInterna"] = String(umidInterna);
+  data["temperaturaSolucao"] = String(tempSolucao);  
 
   //Converte o objeto JSON para String em formato JSON
   String dataStr;
@@ -83,7 +111,8 @@ void setup()
 {
   //Debug console
   Serial.begin(115200);
-  
+
+  dsSensor.begin();
   dht.begin();
   Blynk.begin(auth, ssid, pass);
 
