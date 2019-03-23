@@ -84,7 +84,8 @@ void saveData() {
   data["temperaturaInterna"] = String(tempInterna);
   data["umidadeInterna"] = String(umidInterna);
   data["temperaturaSolucao"] = String(tempSolucao);  
-
+  data["token"] = String(auth);
+  
   //Converte o objeto JSON para String em formato JSON
   String dataStr;
   data.printTo(dataStr);
@@ -119,7 +120,7 @@ void setup()
   //Timer responsável por chamar a função sendSensor a cada 1,5 segundos
   timer.setInterval(1500L, sendSensor);
   //Timer responsável por chamar a função saveData a cada 10 minutos
-  timer.setInterval(600000L, saveData);
+  timer.setInterval(1800000L, saveData);
 }
 
 void loop()
