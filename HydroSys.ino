@@ -33,42 +33,40 @@ float tempInterna;
 void sendSensor() {
   //Leitura dos sensores
   dsSensor.requestTemperatures();
-  tempSolucao = dsSensor.getTempCByIndex(0);
-  umidInterna = dht.readHumidity();
-  tempInterna = dht.readTemperature();
+  float tempSolucaoAux = dsSensor.getTempCByIndex(0);
+  float umidInternaAux = dht.readHumidity();
+  float tempInternaAux = dht.readTemperature();
   
   Serial.print("Temperatura da Solução: ");
-  Serial.print(tempSolucao);
+  Serial.print(tempSolucaoAux);
   Serial.println(" °C");
   Serial.print("Temperatura Interna: ");
-  Serial.print(tempInterna);
+  Serial.print(tempInternaAux);
   Serial.println(" °C");
   Serial.print("Umidade Interna: ");
-  Serial.print(umidInterna);
+  Serial.print(umidInternaAux);
   Serial.println(" %");
   Serial.println("");
 
   //Envia cada dados para um dos pinos virtuais do Blynk
-  if(!isnan(umidInterna)) {
-    Blynk.virtualWrite(V5, umidInterna);
+  if(!isnan(umidInternaAux)) {
+    umidInterna = umidInternaAux;
   }
-  if(!isnan(tempInterna)) {
-    Blynk.virtualWrite(V6, tempInterna);
+  if(!isnan(tempInternaAux)) {
+    tempInterna = tempInternaAux;
   }
-  if(!isnan(tempSolucao)) {
-    Blynk.virtualWrite(V4, tempSolucao);
+  if(!isnan(tempSolucaoAux)) {
+    tempSolucao = tempSolucaoAux;
   }
+
+  Blynk.virtualWrite(V4, tempSolucao);
+  Blynk.virtualWrite(V6, tempInterna);
+  Blynk.virtualWrite(V5, umidInterna);
   
 }
 
 //Função responsável por ler os dados dos sensores, criar um arquivo JSON e enviá-lo via POST para a API.
 void saveData() {
-  //Leitura dos sensores
-  dsSensor.requestTemperatures();
-  tempSolucao = dsSensor.getTempCByIndex(0);
-  umidInterna = dht.readHumidity();
-  tempInterna = dht.readTemperature();
-
   if(!isnan(tempSolucao) && !isnan(umidInterna) && !isnan(tempInterna)) {
     //Criação do objeto JSON
     StaticJsonBuffer<300> JSONbuffer;
@@ -95,7 +93,13 @@ void saveData() {
     int httpCode = http.POST(dataStr);
   
     //Imprimi na porta Serial o código da resposta Http para debug
+    if(httpCode == 200) {
+      Serial.print("Dados salvos com sucesso! Status HTTP: ");
+    } else {
+      Serial.print("Erro ao salvar dados! Status HTTP: ");
+    }
     Serial.println(httpCode);
+    Serial.println("");
   
     //Encerra a conexão com a API
     http.end();
