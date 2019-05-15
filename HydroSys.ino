@@ -6,17 +6,19 @@
 #include <DallasTemperature.h>
 #include <OneWire.h>
 
-#define ONE_WIRE_BUS 14
+#define ONE_WIRE_BUS 4
 #define BLYNK_PRINT Serial
-#define DHTPIN 2
+#define DHTPIN 0
 #define DHTTYPE DHT11
 
+int sendSensorId, saveDataId;
+
 //Token para comunicação com o Blynk
-char auth[] = "7b15b001e0014c4891a6b4e441de1bdf";
+char auth[] = "";
 
 //Credenciais de WIFI
-char ssid[] = "Desktop_F3212335";
-char pass[] = "bru268no";
+char ssid[] = "";
+char pass[] = "";
 
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature dsSensor(&oneWire);
@@ -31,80 +33,77 @@ float tempInterna;
 void sendSensor() {
   //Leitura dos sensores
   dsSensor.requestTemperatures();
-  tempSolucao = dsSensor.getTempCByIndex(0);
-  umidInterna = dht.readHumidity();
-  tempInterna = dht.readTemperature();
-
-  //Laço para garantir que a leitura dos dados dos sensores seja feita com sucesso
-  while (isnan(umidInterna) || isnan(tempInterna) || isnan(tempSolucao)) {
-    dsSensor.requestTemperatures();
-    tempSolucao = dsSensor.getTempCByIndex(0);
-    umidInterna = dht.readHumidity();
-    tempInterna = dht.readTemperature();
-  }
-
+  float tempSolucaoAux = dsSensor.getTempCByIndex(0);
+  float umidInternaAux = dht.readHumidity();
+  float tempInternaAux = dht.readTemperature();
+  
   Serial.print("Temperatura da Solução: ");
-  Serial.print(tempSolucao);
+  Serial.print(tempSolucaoAux);
   Serial.println(" °C");
   Serial.print("Temperatura Interna: ");
-  Serial.print(tempInterna);
+  Serial.print(tempInternaAux);
   Serial.println(" °C");
   Serial.print("Umidade Interna: ");
-  Serial.print(umidInterna);
+  Serial.print(umidInternaAux);
   Serial.println(" %");
   Serial.println("");
-  
+
   //Envia cada dados para um dos pinos virtuais do Blynk
-  Blynk.virtualWrite(V5, umidInterna);
-  Blynk.virtualWrite(V6, tempInterna);
+  if(!isnan(umidInternaAux)) {
+    umidInterna = umidInternaAux;
+  }
+  if(!isnan(tempInternaAux)) {
+    tempInterna = tempInternaAux;
+  }
+  if(!isnan(tempSolucaoAux)) {
+    tempSolucao = tempSolucaoAux;
+  }
+
   Blynk.virtualWrite(V4, tempSolucao);
+  Blynk.virtualWrite(V6, tempInterna);
+  Blynk.virtualWrite(V5, umidInterna);
+  
 }
 
 //Função responsável por ler os dados dos sensores, criar um arquivo JSON e enviá-lo via POST para a API.
 void saveData() {
-  //Leitura dos sensores
-  dsSensor.requestTemperatures();
-  tempSolucao = dsSensor.getTempCByIndex(0);
-  umidInterna = dht.readHumidity();
-  tempInterna = dht.readTemperature();
-
-  //Laço para garantir que a leitura dos dados dos sensores seja feita com sucesso
-  while (isnan(umidInterna) || isnan(tempInterna) || isnan(tempSolucao)) {
-    dsSensor.requestTemperatures();
-    tempSolucao = dsSensor.getTempCByIndex(0);
-    umidInterna = dht.readHumidity();
-    tempInterna = dht.readTemperature();
+  if(!isnan(tempSolucao) && !isnan(umidInterna) && !isnan(tempInterna)) {
+    //Criação do objeto JSON
+    StaticJsonBuffer<300> JSONbuffer;
+  
+    JsonObject& data = JSONbuffer.createObject();
+  
+    data["temperaturaInterna"] = String(tempInterna);
+    data["umidadeInterna"] = String(umidInterna);
+    data["temperaturaSolucao"] = String(tempSolucao);
+    data["token"] = String(auth);
+  
+    //Converte o objeto JSON para String em formato JSON
+    String dataStr;
+    data.printTo(dataStr);
+  
+    //Envia os dados em formato JSON para a API via POST
+    HTTPClient http;
+  
+    //URL da API
+    http.begin("http://hydroapi.herokuapp.com/dados/");
+    http.addHeader("Content-Type", "application/json");
+  
+    //Variável responsável por receber o código da resposta Http
+    int httpCode = http.POST(dataStr);
+  
+    //Imprimi na porta Serial o código da resposta Http para debug
+    if(httpCode == 200) {
+      Serial.print("Dados salvos com sucesso! Status HTTP: ");
+    } else {
+      Serial.print("Erro ao salvar dados! Status HTTP: ");
+    }
+    Serial.println(httpCode);
+    Serial.println("");
+  
+    //Encerra a conexão com a API
+    http.end();
   }
-  
-  //Criação do objeto JSON
-  StaticJsonBuffer<300> JSONbuffer;
-
-  JsonObject& data = JSONbuffer.createObject();
-
-  data["temperaturaInterna"] = String(tempInterna);
-  data["umidadeInterna"] = String(umidInterna);
-  data["temperaturaSolucao"] = String(tempSolucao);  
-
-  //Converte o objeto JSON para String em formato JSON
-  String dataStr;
-  data.printTo(dataStr);
-
-  //Envia os dados em formato JSON para a API via POST
-  HTTPClient http;
-
-  //URL da API
-  http.begin("http://hydroapi.herokuapp.com/dados/");
-  http.addHeader("Content-Type", "application/json");
-
-  //Variável responsável por receber o código da resposta Http
-  int httpCode = http.POST(dataStr);
-
-  //Imprimi na porta Serial o código da resposta Http para debug
-  Serial.println(httpCode);
-
-  //Encerra a conexão com a API
-  http.end();
-  
 }
 
 void setup()
@@ -115,11 +114,11 @@ void setup()
   dsSensor.begin();
   dht.begin();
   Blynk.begin(auth, ssid, pass);
-
-  //Timer responsável por chamar a função sendSensor a cada 1,5 segundos
-  timer.setInterval(1500L, sendSensor);
-  //Timer responsável por chamar a função saveData a cada 10 minutos
-  timer.setInterval(600000L, saveData);
+  
+  //Timer responsável por chamar a função sendSensor a cada 5 segundos
+  sendSensorId = timer.setInterval(5000L, sendSensor);
+  //Timer responsável por chamar a função saveData a cada 30 minutos
+  saveDataId = timer.setInterval(1800000L, saveData);
 }
 
 void loop()
