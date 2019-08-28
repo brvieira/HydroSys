@@ -24,6 +24,7 @@ OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature dsSensor(&oneWire);
 DHT dht(DHTPIN, DHTTYPE);
 BlynkTimer timer;
+WidgetTerminal terminal(V1);
 
 float tempSolucao;
 float umidInterna;
@@ -119,6 +120,20 @@ void setup()
   sendSensorId = timer.setInterval(5000L, sendSensor);
   //Timer responsável por chamar a função saveData a cada 30 minutos
   saveDataId = timer.setInterval(1800000L, saveData);
+
+  terminal.clear();
+  
+  terminal.println("Desenvolvido por: Bruno Vieira Rosa");
+  terminal.println();
+  
+  terminal.println("Histórico de dados disponível em:");
+  terminal.println("brvieira.github.io/hydrosys-frontend");
+  terminal.println();
+  
+  terminal.println("Códigos disponíveis em:");
+  terminal.println("github.com/brvieira");
+
+  terminal.flush();
 }
 
 void loop()
